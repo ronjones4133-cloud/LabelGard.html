@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LabelGard™ — Customer Receiving Label Generator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+<style>
+:root{
+  --navy-deep:#081525;--navy:#0D1F35;--navy-mid:#162942;--navy-border:#1E3550;
+  --gold:#E9A535;--gold-dim:#b87d1f;
+  --font:'Segoe UI',system-ui,-apple-system,sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:#f0f2f5;color:#1a1a2e}
+
+/* ── Nav ── */
+nav.lg-nav{background:var(--navy-deep);padding:0 32px;height:52px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--navy-border)}
+.lg-brand{display:flex;align-items:center;gap:10px}
+.lg-dot{width:9px;height:9px;background:var(--gold);border-radius:50%;box-shadow:0 0 8px rgba(233,165,53,.4)}
+.lg-name{color:#fff;font-size:16px;font-weight:800;letter-spacing:-.3px}
+.lg-name sup{color:var(--gold);font-size:9px;vertical-align:super;font-weight:600}
+.lg-suite{color:rgba(255,255,255,.3);font-size:11px;margin-left:2px}
+.lg-nav-tag{color:rgba(255,255,255,.3);font-size:11px}
+
+/* ── Setup panels ── */
+.setup-panel{max-width:800px;margin:28px auto;padding:0 20px}
+.card{background:#fff;border-radius:8px;padding:24px 28px;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:18px}
+.card h2{font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;color:#888;margin-bottom:16px}
+
+.field-row{display:flex;gap:14px;margin-bottom:12px;align-items:flex-end}
+.field-row label{display:flex;flex-direction:column;gap:4px;flex:1}
+.field-row label span{font-size:.76rem;font-weight:600;color:#555}
+.field-row input,.field-row textarea,.field-row select{border:1.5px solid #dde0e8;border-radius:5px;padding:8px 11px;font-size:.88rem;font-family:inherit;transition:border-color .15s;resize:none}
+.field-row input:focus,.field-row textarea:focus{outline:none;border-color:var(--navy)}
+
+.cust-search-wrap{position:relative}
+.cust-dropdown{position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid var(--navy);border-top:none;border-radius:0 0 5px 5px;max-height:220px;overflow-y:auto;z-index:200;display:none;box-shadow:0 4px 12px rgba(0,0,0,.12)}
+.cust-dropdown.open{display:block}
+.cust-option{padding:8px 12px;cursor:pointer;font-size:.82rem;border-bottom:1px solid #f0f0f0}
+.cust-option:hover{background:#eef2ff}
+.cust-option .cust-no{color:#888;font-size:.75rem;margin-left:6px}
+
+.upload-zone{border:2px dashed #c8cdd8;border-radius:6px;padding:22px;text-align:center;cursor:pointer;transition:all .2s;background:#fafbfd}
+.upload-zone:hover,.upload-zone.drag-over{border-color:var(--navy);background:#f0f2f5}
+.upload-zone .icon{font-size:1.7rem;margin-bottom:6px}
+.upload-zone p{font-size:.86rem;color:#666}
+.upload-zone strong{color:var(--navy)}
+#file-input{display:none}
+
+.status-bar{font-size:.8rem;padding:9px 13px;border-radius:5px;margin-top:10px;display:none}
+.status-bar.info{background:#e8f0fe;color:#1a56db;display:block}
+.status-bar.success{background:#e3f9e5;color:#1a7f37;display:block}
+.status-bar.error{background:#fde8e8;color:#c0392b;display:block}
+
+.items-table{width:100%;border-collapse:collapse;font-size:.81rem;margin-top:4px}
+.items-table th{background:#f5f6f8;padding:7px 9px;text-align:left;font-weight:600;color:#555;font-size:.73rem;text-transform:uppercase;letter-spacing:.05em}
+.items-table td{padding:7px 9px;border-bottom:1px solid #f0f0f0;vertical-align:middle}
+.items-table tr:last-child td{border-bottom:none}
+.badge{background:var(--navy);color:#fff;border-radius:10px;padding:2px 8px;font-size:.7rem;font-weight:600}
+.badge.warn{background:#f59e0b}
+
+.ctn-input{width:70px;padding:3px 6px;border:1.5px solid #dde0e8;border-radius:4px;font-size:.82rem;text-align:center;font-family:inherit}
+.ctn-input:focus{outline:none;border-color:var(--navy)}
+.ref-input{width:110px;padding:3px 6px;border:1.5px solid #dde0e8;border-radius:4px;font-size:.82rem;font-family:inherit}
+.ref-input:focus{outline:none;border-color:var(--navy)}
+
+.btn-generate{display:block;width:100%;padding:13px;background:var(--navy);color:#fff;border:none;border-radius:6px;font-size:.95rem;font-weight:600;cursor:pointer;letter-spacing:.03em;transition:background .15s;margin-top:4px}
+.btn-generate:hover{background:var(--navy-mid)}
+
+/* ── Screen label area ── */
+@media screen{
+  #labels-container{max-width:980px;margin:0 auto 48px;padding:0 20px}
+  .label-group-header{font-size:.73rem;text-transform:uppercase;letter-spacing:.08em;color:#888;padding:10px 0 5px;border-top:1px solid #dde0e8;margin-top:18px;display:flex;align-items:center;gap:10px}
+  .label-wrapper{display:inline-block;margin:7px;vertical-align:top}
+  .print-bar{background:#fff;border-bottom:1px solid #dde0e8;padding:10px 28px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:0;z-index:100;box-shadow:0 2px 6px rgba(0,0,0,.06)}
+  .btn-print{background:#1a7f37;color:#fff;border:none;border-radius:5px;padding:8px 20px;font-size:.88rem;font-weight:600;cursor:pointer}
+  .btn-back{background:#f0f2f5;color:#333;border:none;border-radius:5px;padding:8px 20px;font-size:.88rem;font-weight:600;cursor:pointer}
+  .btn-discrepancy{background:var(--gold);color:var(--navy-deep);border:none;border-radius:5px;padding:8px 20px;font-size:.88rem;font-weight:700;cursor:pointer;transition:background .15s}
+  .btn-discrepancy:hover{background:var(--gold-dim);color:#fff}
+  .btn-reprint{background:var(--navy);color:#fff;border:none;border-radius:4px;padding:3px 10px;font-size:.68rem;font-weight:700;cursor:pointer;letter-spacing:.03em;white-space:nowrap;transition:background .15s}
+  .btn-reprint:hover{background:var(--navy-mid)}
+  .label-count-info{font-size:.83rem;color:#555;margin-left:auto}
+
+  /* Toast */
+  #discrepancy-toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:var(--navy-deep);color:#fff;padding:10px 22px;border-radius:7px;font-size:.85rem;font-weight:600;opacity:0;pointer-events:none;transition:opacity .3s;z-index:999;border:1px solid var(--navy-border)}
+  #discrepancy-toast.show{opacity:1}
+}
+
+/* ── 6×4 LANDSCAPE label ── */
+.shipping-label{
+  width:6in;height:4in;
+  border:1.5px solid #111;
+  font-family:Arial,Helvetica,sans-serif;
+  background:#fff;
+  display:grid;
+  grid-template-rows:0.72in 1.38in 0.85in 1.05in;
+  overflow:hidden;
+  page-break-after:always;
+  break-after:page;
+}
+.lbl-header{display:grid;grid-template-columns:1fr 1fr;border-bottom:1.5px solid #111;height:0.72in}
+.lbl-addr{padding:5px 10px;font-size:7.5pt;line-height:1.45;overflow:hidden}
+.lbl-addr.right{border-left:1.5px solid #111}
+.lbl-addr-tag{font-weight:700;font-size:7.5pt;display:block;margin-bottom:1px;color:#333}
+.lbl-addr-name{font-weight:700;font-size:9pt}
+.lbl-part-row{display:grid;grid-template-columns:1fr 1fr;border-bottom:1.5px solid #111;height:1.38in}
+.lbl-cell{padding:6px 12px 4px;display:flex;flex-direction:column;overflow:hidden}
+.lbl-cell.right{border-left:1.5px solid #111;justify-content:center}
+.lbl-cell-tag{font-size:8pt;font-weight:600;margin-bottom:3px;color:#333;flex-shrink:0}
+.lbl-cell svg{max-width:100%;height:auto;flex-shrink:0}
+.lbl-desc-text{font-size:22pt;font-weight:700;line-height:1.15;word-break:break-word}
+.lbl-qty-row{display:grid;grid-template-columns:1fr 1fr;border-bottom:1.5px solid #111;height:0.85in}
+.lbl-po-row{display:grid;grid-template-columns:1fr 1fr;height:1.05in}
+.lbl-po-cell{padding:6px 12px 4px;display:flex;flex-direction:column;overflow:hidden}
+.lbl-po-cell.right{border-left:1.5px solid #111}
+
+/* ── Print ── */
+@page{size:6in 4in;margin:0.1in}
+@media print{
+  nav.lg-nav,footer.lg-footer,.setup-panel,.print-bar,#discrepancy-toast{display:none!important}
+  body,html{margin:0;padding:0;background:#fff}
+  #labels-container{margin:0;padding:0;max-width:none}
+  .label-group-header{display:none!important}
+  .label-wrapper{display:block;margin:0;padding:0}
+  .shipping-label{width:6in;height:4in;border:1px solid #111;page-break-after:always;break-after:page;margin:0;display:grid;grid-template-rows:0.72in 1.38in 0.85in 1.05in}
+  .lbl-header,.lbl-part-row,.lbl-qty-row{border-bottom:1px solid #111!important}
+  .lbl-addr.right,.lbl-cell.right,.lbl-po-cell.right{border-left:1px solid #111!important}
+}
+
+/* ── Footer ── */
+footer.lg-footer{background:var(--navy-deep);padding:24px 32px;border-top:1px solid var(--navy-border);text-align:center}
+footer.lg-footer p{color:rgba(255,255,255,.28);font-size:11px;line-height:1.9}
+footer.lg-footer a{color:rgba(255,255,255,.5);text-decoration:none;transition:color .15s}
+footer.lg-footer a:hover{color:var(--gold)}
+.footer-copy{margin-top:6px;color:rgba(255,255,255,.18);font-size:10px;letter-spacing:.3px}
+</style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav class="lg-nav">
+  <div class="lg-brand">
+    <div class="lg-dot"></div>
+    <span class="lg-name">LabelGard<sup>™</sup></span>
+    <span class="lg-suite">&nbsp;part of ItemSync™</span>
+  </div>
+  <span class="lg-nav-tag">Customer Receiving Label Generator</span>
+</nav>
+
+<!-- Setup view -->
+<div id="setup-view">
+  <div class="setup-panel">
+
+    <!-- Step 1 -->
+    <div class="card">
+      <h2>Step 1 — Order Details</h2>
+      <div class="field-row">
+        <label><span>Customer #</span>
+          <div class="cust-search-wrap">
+            <input type="text" id="cust-search" placeholder="Type customer # or name to search…" autocomplete="off">
+            <div class="cust-dropdown" id="cust-dropdown"></div>
+          </div>
+        </label>
+        <label style="flex:0 0 160px"><span>Customer PO #</span>
+          <input type="text" id="po-number" placeholder="e.g. PO-123456">
+        </label>
+      </div>
+      <div class="field-row">
+        <label><span>Ship-To Company Name</span>
+          <input type="text" id="to-name" placeholder="Auto-filled from customer lookup">
+        </label>
+      </div>
+      <div class="field-row">
+        <label><span>Ship-To Address</span>
+          <input type="text" id="to-addr1" placeholder="Street address (auto-filled)">
+        </label>
+      </div>
+      <div class="field-row">
+        <label style="flex:2"><span>City</span><input type="text" id="to-city" placeholder="City"></label>
+        <label style="flex:0 0 70px"><span>State</span><input type="text" id="to-state" placeholder="ST"></label>
+        <label style="flex:1"><span>ZIP</span><input type="text" id="to-zip" placeholder="ZIP"></label>
+      </div>
+      <div id="multi-addr-note" style="display:none;margin-top:8px;font-size:.78rem;color:#b45309">
+        ⚠️ Multiple ship-to addresses found for this customer — please verify the address above.
+      </div>
+    </div>
+
+    <!-- Step 2 -->
+    <div class="card">
+      <h2>Step 2 — Upload Sales Order (Lines export from BC)</h2>
+      <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
+        <div class="icon">📂</div>
+        <p><strong>Click to upload</strong> or drag &amp; drop the SO Lines .xlsx</p>
+        <p style="margin-top:5px;font-size:.76rem">Must include: No., Item Reference No., Description, Quantity</p>
+      </div>
+      <input type="file" id="file-input" accept=".xlsx,.xls">
+      <div id="upload-status" class="status-bar"></div>
+    </div>
+
+    <!-- Preview table -->
+    <div class="card" id="preview-card" style="display:none">
+      <h2>Label Preview — <span id="total-label-count">0</span> labels to print
+        <span style="font-weight:400;color:#aaa;margin-left:6px;font-size:.7rem">(Carton Qty and Vendor Part # are editable)</span>
+      </h2>
+      <table class="items-table">
+        <thead>
+          <tr>
+            <th>Vision Part #</th>
+            <th>Vendor Part # (editable)</th>
+            <th>Description</th>
+            <th>Total Qty</th>
+            <th>Carton Qty (editable)</th>
+            <th>Labels</th>
+          </tr>
+        </thead>
+        <tbody id="preview-body"></tbody>
+      </table>
+      <div id="missing-uom-note" style="font-size:.76rem;color:#b45309;margin-top:8px;display:none">
+        ⚠️ Items marked <span class="badge warn">!</span> had no BOX entry in UOM data — defaulted to 1. Please verify.
+      </div>
+    </div>
+
+    <div class="card" id="generate-card" style="display:none">
+      <button class="btn-generate" onclick="generateLabels()">Generate &amp; Preview Labels →</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- Labels view -->
+<div id="labels-view" style="display:none">
+  <div class="print-bar">
+    <button class="btn-back" onclick="goBack()">← Back</button>
+    <button class="btn-print" onclick="window.print()">🖨 Print All Labels</button>
+    <button class="btn-discrepancy" onclick="copyDiscrepancyReport()">📋 Copy Discrepancy Report</button>
+    <span class="label-count-info" id="print-summary"></span>
+  </div>
+  <div id="labels-container"></div>
+</div>
+
+<!-- Toast -->
+<div id="discrepancy-toast"></div>
+
+<!-- Footer -->
+<footer class="lg-footer">
+  <p>LabelGard™ is part of the <strong style="color:rgba(255,255,255,.45)">ItemSync™</strong> family of item master data tools for Business Central.</p>
+  <p>Built by <a href="https://www.linkedin.com/in/ronjones4133/" target="_blank">Ron Jones</a> · Supply Chain &amp; ERP Systems</p>
+  <div class="footer-copy">© 2026 ItemSync · All rights reserved · Source code proprietary · First published June 2026</div>
+  <div class="footer-copy" style="margin-top:4px"><a href="TERMS.md" target="_blank" style="color:rgba(255,255,255,.4)">Terms of Use</a></div>
+</footer>
+
+<script>
+const FROM_NAME = 'Vision Industries Group';
+const FROM_ADDR = '480 Elizabeth Ave, Somerset, NJ';
+
+// ── Hardcoded UOM (BOX quantities) ──
+const uomData = __UOMDATA_PLACEHOLDER__;
+
+// ── Customer data (truncated for space — full array preserved from source) ──
+const CUSTOMERS = __CUSTOMERS_PLACEHOLDER__;
+
+// ── State ──
+var soLines = [];
+var baselineData = {};   // idx → {ctn, custPart} system defaults
+var labelOrderInfo = {}; // captured at generateLabels
+
+// ── Customer index ──
+var custIdx = {};
+CUSTOMERS.forEach(function(c){
+  if(!custIdx[c.no]) custIdx[c.no]=[];
+  custIdx[c.no].push(c);
+});
+
+// ── Customer search ──
+var custSearch = document.getElementById('cust-search');
+var custDrop   = document.getElementById('cust-dropdown');
+
+custSearch.addEventListener('input', function(){
+  var q = custSearch.value.trim().toLowerCase();
+  if(!q){custDrop.classList.remove('open');return;}
+  var seen=new Set();
+  var matches=CUSTOMERS.filter(function(c){
+    var id=c.no+'|'+c.name;
+    if(seen.has(id))return false;
+    seen.add(id);
+    return c.no.startsWith(q)||c.name.toLowerCase().includes(q);
+  }).slice(0,40);
+  if(!matches.length){custDrop.classList.remove('open');return;}
+  custDrop.innerHTML=matches.map(function(c){
+    return '<div class="cust-option" data-no="'+c.no+'" data-name="'+esc(c.name)+'"><strong>'+esc(c.name)+'</strong><span class="cust-no">#'+c.no+'</span></div>';
+  }).join('');
+  custDrop.classList.add('open');
+  custDrop.querySelectorAll('.cust-option').forEach(function(el){
+    el.addEventListener('click',function(){
+      custSearch.value=el.dataset.no+' \u2013 '+el.dataset.name;
+      custDrop.classList.remove('open');
+      fillAddress(el.dataset.no);
+    });
+  });
+});
+document.addEventListener('click',function(e){
+  if(!custSearch.contains(e.target)&&!custDrop.contains(e.target)) custDrop.classList.remove('open');
+});
+
+function fillAddress(custNo){
+  var entries=custIdx[custNo]||[];
+  if(!entries.length)return;
+  var c=entries[0];
+  document.getElementById('to-name').value=c.name;
+  document.getElementById('to-addr1').value=c.addr.replace(/\n/g,', ');
+  document.getElementById('to-city').value=c.city;
+  document.getElementById('to-state').value=c.state;
+  document.getElementById('to-zip').value=c.zip;
+  document.getElementById('multi-addr-note').style.display=entries.length>1?'block':'none';
+}
+
+// ── Drag/drop + file input ──
+var uploadZone=document.getElementById('upload-zone');
+uploadZone.addEventListener('dragover',function(e){e.preventDefault();uploadZone.classList.add('drag-over');});
+uploadZone.addEventListener('dragleave',function(){uploadZone.classList.remove('drag-over');});
+uploadZone.addEventListener('drop',function(e){e.preventDefault();uploadZone.classList.remove('drag-over');handleSOFile(e.dataTransfer.files[0]);});
+document.getElementById('file-input').addEventListener('change',function(e){handleSOFile(e.target.files[0]);});
+
+// ── SO handler ──
+function handleSOFile(file){
+  if(!file)return;
+  setStatus('upload-status','info','Reading '+file.name+'\u2026');
+  var r=new FileReader();
+  r.onload=function(evt){
+    try{
+      var wb=XLSX.read(evt.target.result,{type:'array'});
+      var ws=wb.Sheets[wb.SheetNames[0]];
+      var rows=XLSX.utils.sheet_to_json(ws,{defval:''});
+      if(!rows.length)throw new Error('No data rows found.');
+      var keys=Object.keys(rows[0]);
+      function findCol(){
+        var candidates=Array.prototype.slice.call(arguments);
+        return keys.find(function(k){return candidates.some(function(c){return k.toLowerCase().indexOf(c.toLowerCase())!==-1;});});
+      }
+      var noKey=findCol('No.');
+      var refKey=findCol('Item Reference No','Reference No');
+      var descKey=findCol('Description','Desc');
+      var qtyKey=findCol('Quantity','Qty');
+      var typeKey=findCol('Type');
+      if(!noKey||!qtyKey||!descKey)throw new Error('Missing required columns (No., Description, Quantity).');
+      soLines=[];
+      for(var i=0;i<rows.length;i++){
+        var row=rows[i];
+        if(typeKey&&String(row[typeKey]).trim().toLowerCase()!=='item')continue;
+        var vPart=String(row[noKey]).trim();
+        if(!vPart)continue;
+        var ref=refKey?String(row[refKey]).trim():'';
+        var custPart=ref||vPart;
+        var desc=String(row[descKey]).trim();
+        var qty=Number(row[qtyKey])||0;
+        if(qty>0)soLines.push({visionPart:vPart,custPart:custPart,desc:desc,qty:qty});
+      }
+      if(!soLines.length)throw new Error('No Item rows with Quantity > 0 found.');
+      setStatus('upload-status','success','\u2713 '+soLines.length+' line items loaded from '+file.name);
+      renderPreview();
+    }catch(err){
+      setStatus('upload-status','error','Error: '+err.message);
+    }
+  };
+  r.readAsArrayBuffer(file);
+}
+
+// ── Preview table ──
+function renderPreview(){
+  var hasMissing=false;
+  baselineData={};
+  var tbody=document.getElementById('preview-body');
+  tbody.innerHTML='';
+  soLines.forEach(function(line,idx){
+    var ctnQty=uomData[line.visionPart]||1;
+    if(!uomData[line.visionPart])hasMissing=true;
+    // capture baseline before any user edits
+    baselineData[idx]={ctn:ctnQty, custPart:line.custPart};
+    var labelCount=Math.ceil(line.qty/ctnQty);
+    var tr=document.createElement('tr');
+    tr.innerHTML=
+      '<td><code>'+esc(line.visionPart)+'</code></td>'+
+      '<td><input class="ref-input" type="text" data-idx="'+idx+'" value="'+esc(line.custPart)+'"></td>'+
+      '<td>'+esc(line.desc)+'</td>'+
+      '<td>'+line.qty.toLocaleString()+'</td>'+
+      '<td>'+
+        '<input class="ctn-input" type="number" min="1" value="'+ctnQty+'" data-idx="'+idx+'"'+
+        (!uomData[line.visionPart]?' style="border-color:#f59e0b"':'')+'>'+
+        (!uomData[line.visionPart]?'<span class="badge warn" style="margin-left:4px">!</span>':'')+
+      '</td>'+
+      '<td><span class="badge lbl-badge-'+idx+'">'+labelCount+'</span></td>';
+    tbody.appendChild(tr);
+  });
+  document.querySelectorAll('.ctn-input').forEach(function(inp){
+    inp.addEventListener('input',function(){
+      var idx=parseInt(inp.dataset.idx);
+      var newCtn=Math.max(1,parseInt(inp.value)||1);
+      document.querySelector('.lbl-badge-'+idx).textContent=Math.ceil(soLines[idx].qty/newCtn);
+      recalcTotal();
+    });
+  });
+  document.getElementById('missing-uom-note').style.display=hasMissing?'block':'none';
+  recalcTotal();
+  document.getElementById('preview-card').style.display='block';
+  document.getElementById('generate-card').style.display='block';
+}
+
+function recalcTotal(){
+  var total=0;
+  document.querySelectorAll('.ctn-input').forEach(function(inp){
+    var idx=parseInt(inp.dataset.idx);
+    var ctn=Math.max(1,parseInt(inp.value)||1);
+    total+=Math.ceil(soLines[idx].qty/ctn);
+  });
+  document.getElementById('total-label-count').textContent=total;
+}
+
+// ── Generate labels ──
+function generateLabels(){
+  var poNumber=document.getElementById('po-number').value.trim();
+  var toName=document.getElementById('to-name').value.trim();
+  var addr1=document.getElementById('to-addr1').value.trim();
+  var city=document.getElementById('to-city').value.trim();
+  var state=document.getElementById('to-state').value.trim();
+  var zip=document.getElementById('to-zip').value.trim();
+  if(!toName){alert('Please enter the Ship-To company name.');return;}
+
+  var cityLine=[city,state].filter(Boolean).join(', ');
+  if(zip)cityLine+=' '+zip;
+
+  // capture order info for reprint & discrepancy report
+  labelOrderInfo={toName:toName,addr1:addr1,cityLine:cityLine,poNumber:poNumber};
+
+  // collect overrides
+  var ctnOverrides={};
+  var custPartOverrides={};
+  document.querySelectorAll('.ctn-input').forEach(function(inp){ctnOverrides[parseInt(inp.dataset.idx)]=Math.max(1,parseInt(inp.value)||1);});
+  document.querySelectorAll('.ref-input').forEach(function(inp){custPartOverrides[parseInt(inp.dataset.idx)]=inp.value.trim();});
+
+  var container=document.getElementById('labels-container');
+  container.innerHTML='';
+  var totalCount=0;
+
+  soLines.forEach(function(line,idx){
+    var ctnQty=ctnOverrides[idx]!==undefined?ctnOverrides[idx]:(uomData[line.visionPart]||1);
+    var custPart=custPartOverrides[idx]!==undefined?custPartOverrides[idx]:line.custPart;
+    var labelCount=Math.ceil(line.qty/ctnQty);
+    totalCount+=labelCount;
+    renderGroup(idx,container,ctnQty,custPart,labelCount,line);
+  });
+
+  document.getElementById('print-summary').textContent=soLines.length+' items \u00b7 '+totalCount+' total labels';
+  document.getElementById('setup-view').style.display='none';
+  document.getElementById('labels-view').style.display='block';
+}
+
+// ── Render a single line's group (header + labels) ──
+function renderGroup(idx,container,ctnQty,custPart,labelCount,line){
+  var grp=document.createElement('div');
+  grp.className='label-group-header';
+  grp.dataset.groupIdx=idx;
+  grp.innerHTML=
+    esc(line.visionPart)+' \u2014 '+esc(line.desc)+'  \u00b7  '+labelCount+' label'+(labelCount!==1?'s':'')+
+    '&nbsp;&nbsp;<button class="btn-reprint" onclick="reprintItem('+idx+')">&#x21ba; Reprint this item</button>';
+  container.appendChild(grp);
+
+  for(var i=0;i<labelCount;i++){
+    var wrapper=document.createElement('div');
+    wrapper.className='label-wrapper';
+    wrapper.dataset.labelIdx=idx;
+    wrapper.appendChild(buildLabel({
+      toName:labelOrderInfo.toName,
+      addr1:labelOrderInfo.addr1,
+      cityLine:labelOrderInfo.cityLine,
+      visionPart:line.visionPart,
+      custPart:custPart,
+      desc:line.desc,
+      cartonQty:ctnQty,
+      poNumber:labelOrderInfo.poNumber
+    }));
+    container.appendChild(wrapper);
+  }
+}
+
+// ── Reprint a single item ──
+function reprintItem(idx){
+  var container=document.getElementById('labels-container');
+
+  // read live overrides from preview table
+  var ctnInp=document.querySelector('.ctn-input[data-idx="'+idx+'"]');
+  var refInp=document.querySelector('.ref-input[data-idx="'+idx+'"]');
+  var ctnQty=ctnInp?Math.max(1,parseInt(ctnInp.value)||1):(uomData[soLines[idx].visionPart]||1);
+  var custPart=refInp?refInp.value.trim():soLines[idx].custPart;
+  var line=soLines[idx];
+  var labelCount=Math.ceil(line.qty/ctnQty);
+
+  // remove old group header and label wrappers for this idx
+  container.querySelectorAll('.label-group-header[data-group-idx="'+idx+'"]').forEach(function(el){el.remove();});
+  container.querySelectorAll('.label-wrapper[data-label-idx="'+idx+'"]').forEach(function(el){el.remove();});
+
+  // re-render at end of container
+  renderGroup(idx,container,ctnQty,custPart,labelCount,line);
+
+  // recalc total label count shown in print bar
+  var total=0;
+  container.querySelectorAll('.label-wrapper').forEach(function(){total++;});
+  var parts=document.getElementById('print-summary').textContent.split('\u00b7');
+  document.getElementById('print-summary').textContent=(parts[0]||'').trim()+' \u00b7 '+total+' total labels';
+
+  // scroll to reprinted group
+  var newGrp=container.querySelector('.label-group-header[data-group-idx="'+idx+'"]');
+  if(newGrp)newGrp.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+// ── Discrepancy Report ──
+function copyDiscrepancyReport(){
+  var now=new Date();
+  var ts=now.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+' '+now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+  var custName=document.getElementById('to-name').value.trim()||'(unknown customer)';
+  var poNum=document.getElementById('po-number').value.trim()||'(no PO)';
+
+  var lines=[];
+  lines.push('Customer Receiving Label \u2014 Data Discrepancy Report');
+  lines.push('Generated: '+ts);
+  lines.push('Customer: '+custName);
+  lines.push('PO: '+poNum);
+  lines.push('');
+
+  var hasAny=false;
+  soLines.forEach(function(line,idx){
+    var bl=baselineData[idx]||{ctn:uomData[line.visionPart]||1,custPart:line.custPart};
+    var ctnInp=document.querySelector('.ctn-input[data-idx="'+idx+'"]');
+    var refInp=document.querySelector('.ref-input[data-idx="'+idx+'"]');
+    var usedCtn=ctnInp?Math.max(1,parseInt(ctnInp.value)||1):bl.ctn;
+    var usedCustPart=refInp?refInp.value.trim():bl.custPart;
+
+    var itemLines=[];
+    if(usedCtn!==bl.ctn){
+      itemLines.push('  Carton Qty: system='+bl.ctn+', used='+usedCtn);
+    }
+    if(usedCustPart!==bl.custPart){
+      itemLines.push('  Vendor Part #: system='+esc_plain(bl.custPart)+', used='+esc_plain(usedCustPart));
+    }
+    if(itemLines.length){
+      hasAny=true;
+      lines.push(line.visionPart+' \u2014 '+line.desc);
+      itemLines.forEach(function(l){lines.push(l);});
+      lines.push('');
+    }
+  });
+
+  if(!hasAny){
+    lines.push('No discrepancies detected. All carton quantities and vendor part numbers match system defaults.');
+  }
+
+  var report=lines.join('\n');
+  navigator.clipboard.writeText(report).then(function(){
+    showToast('\u2713 Discrepancy report copied to clipboard');
+  }).catch(function(){
+    // fallback
+    var ta=document.createElement('textarea');
+    ta.value=report;
+    ta.style.position='fixed';ta.style.opacity='0';
+    document.body.appendChild(ta);ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('\u2713 Discrepancy report copied to clipboard');
+  });
+}
+
+function showToast(msg){
+  var t=document.getElementById('discrepancy-toast');
+  t.textContent=msg;
+  t.classList.add('show');
+  setTimeout(function(){t.classList.remove('show');},2800);
+}
+
+// ── Label builder ──
+function buildLabel(o){
+  var lbl=document.createElement('div');
+  lbl.className='shipping-label';
+
+  var hdr=document.createElement('div');
+  hdr.className='lbl-header';
+  hdr.innerHTML=
+    '<div class="lbl-addr">'+
+      '<span class="lbl-addr-tag">To:</span>'+
+      '<div class="lbl-addr-name">'+esc(o.toName)+'</div>'+
+      '<div>'+esc(o.addr1)+'</div>'+
+      '<div>'+esc(o.cityLine)+'</div>'+
+    '</div>'+
+    '<div class="lbl-addr right">'+
+      '<span class="lbl-addr-tag">From:</span>'+
+      '<div class="lbl-addr-name">'+FROM_NAME+'</div>'+
+      '<div>'+FROM_ADDR+'</div>'+
+    '</div>';
+  lbl.appendChild(hdr);
+
+  var partRow=document.createElement('div');
+  partRow.className='lbl-part-row';
+  partRow.innerHTML=
+    '<div class="lbl-cell"><div class="lbl-cell-tag">Part #:</div><svg></svg></div>'+
+    '<div class="lbl-cell right"><div class="lbl-cell-tag">Parts Description:</div><div class="lbl-desc-text">'+esc(o.desc)+'</div></div>';
+  lbl.appendChild(partRow);
+  renderBC(partRow.querySelector('svg'),o.custPart,40);
+
+  var qtyRow=document.createElement('div');
+  qtyRow.className='lbl-qty-row';
+  qtyRow.innerHTML='<div class="lbl-cell"><div class="lbl-cell-tag">Quantity:</div><svg></svg></div><div class="lbl-cell right"></div>';
+  lbl.appendChild(qtyRow);
+  renderBC(qtyRow.querySelector('svg'),String(o.cartonQty),32);
+
+  var poRow=document.createElement('div');
+  poRow.className='lbl-po-row';
+  if(o.poNumber){
+    poRow.innerHTML=
+      '<div class="lbl-po-cell"><div class="lbl-cell-tag">Customer PO #:</div><svg class="po-svg"></svg></div>'+
+      '<div class="lbl-po-cell right"><div class="lbl-cell-tag">Vendor #:</div><svg class="vend-svg"></svg></div>';
+    lbl.appendChild(poRow);
+    renderBC(poRow.querySelector('.po-svg'),o.poNumber,32);
+  }else{
+    poRow.innerHTML=
+      '<div class="lbl-po-cell"><div class="lbl-cell-tag">Customer PO #:</div></div>'+
+      '<div class="lbl-po-cell right"><div class="lbl-cell-tag">Vendor #:</div><svg class="vend-svg"></svg></div>';
+    lbl.appendChild(poRow);
+  }
+  renderBC(poRow.querySelector('.vend-svg'),o.visionPart,32);
+  return lbl;
+}
+
+function renderBC(svgEl,value,height){
+  if(!svgEl)return;
+  try{
+    JsBarcode(svgEl,value,{
+      format:'CODE128',width:1.6,height:height,
+      displayValue:true,fontSize:9,margin:2,
+      background:'#ffffff',lineColor:'#000000'
+    });
+  }catch(e){
+    svgEl.insertAdjacentHTML('afterend','<span style="font-size:6pt;color:red">[err:'+value+']</span>');
+  }
+}
+
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,' ');}
+function esc_plain(s){return String(s||'');}
+
+function setStatus(id,type,msg){
+  var el=document.getElementById(id);
+  el.className='status-bar '+type;
+  el.textContent=msg;
+}
+
+function goBack(){
+  document.getElementById('labels-view').style.display='none';
+  document.getElementById('setup-view').style.display='block';
+}
+</script>
+</body>
+</html>
